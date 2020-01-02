@@ -25,3 +25,8 @@ print(account)
 # instagram = Instagram()
 # instagram.login()
 # instagram.get_medias('private_account', 100)
+
+media_paginate = instagram.get_paginate_medias('kevin')
+print(media_paginate)
+media_paginate2 = instagram.get_paginate_medias_by_user_id(account.identifier, media_paginate['maxId'])
+print(media_paginate2)
