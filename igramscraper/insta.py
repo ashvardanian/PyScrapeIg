@@ -105,6 +105,38 @@ class Instagram:
         """
         endpoints.request_media_count = count
 
+#region Shortcuts
+
+    def get_user_medias(self, username, count=20):
+        """
+        :param username: instagram username
+        :param count: the number of how many media you want to get
+        :param maxId: used to paginate
+        :return: list of Media
+        """
+        account = self.get_account(username)
+        return self.yield_pagintated_data(self.get_user_medias_page, user_id=account.identifier)
+
+    def get_media_by_code(self, media_code):
+        """
+        :param media_code: media code
+        :return: Media
+        """
+        url = endpoints.get_media_page_link(media_code)
+        return self.get_media_by_url(url)        
+
+    def get_media_by_id(self, media_id):
+        """
+        :param media_id: media id
+        :return: list of Media
+        """
+        media_link = Media.get_link_from_id(media_id)
+        return self.get_media_by_url(media_link)
+
+#endregion
+
+#region Single Batch Retrieval
+
     def get_account_by_id(self, id):
         """
         :param id: account id
@@ -141,176 +173,7 @@ class Instagram:
             raise InstagramException(message)
 
         return json_response['user']['username']
-
-    def generate_headers(self, session, gis_token=None):
-        """
-        :param session: user session dict
-        :param gis_token: a token used to be verified by instagram in header
-        :return: header dict
-        """
-        headers = {}
-        if session is not None:
-            cookies = ''
-
-            for key in session.keys():
-                cookies += f"{key}={session[key]}; "
-
-            csrf = session['x-csrftoken'] if session['csrftoken'] is None else \
-                session['csrftoken']
-
-            headers = {
-                'cookie': cookies,
-                'referer': endpoints.BASE_URL + '/',
-                'x-csrftoken': csrf
-            }
-
-        if self.user_agent is not None:
-            headers['user-agent'] = self.user_agent
-
-            if gis_token is not None:
-                headers['x-instagram-gis'] = gis_token
-
-        return headers
-
-    def __generate_gis_token(self, variables):
-        """
-        :param variables: a dict used to  generate_gis_token
-        :return: a token used to be verified by instagram
-        """
-        rhx_gis = self.__get_rhx_gis() if self.__get_rhx_gis() is not None else 'NULL'
-        string_to_hash = ':'.join([rhx_gis, json.dumps(variables, separators=(',', ':')) if isinstance(variables, dict) else variables])
-        return hashlib.md5(string_to_hash.encode('utf-8')).hexdigest()
-
-    def __get_rhx_gis(self):
-        """
-        :return: a string to generate gis_token
-        """
-        if self.rhx_gis is None:
-            try:
-                shared_data = self.__get_shared_data_from_page()
-            except Exception as _:
-                raise InstagramException('Could not extract gis from page')
-
-            if 'rhx_gis' in shared_data.keys():
-                self.rhx_gis = shared_data['rhx_gis']
-            else:
-                self.rhx_gis = None
-
-        return self.rhx_gis
-
-    def __get_mid(self):
-        """manually fetches the machine id from graphQL"""
-        time.sleep(self.sleep_between_requests)
-        response = self.__req.get('https://www.instagram.com/web/__mid/')
-
-        if response.status_code != Instagram.HTTP_OK:
-            raise InstagramException.default(response.text,
-                                             response.status_code)
-
-        return response.text
-
-    def __get_shared_data_from_page(self, url=endpoints.BASE_URL):
-        """
-        :param url: the requested url
-        :return: a dict extract from page
-        """
-        url = url.rstrip('/') + '/'
-        time.sleep(self.sleep_between_requests)
-        response = self.__req.get(url, headers=self.generate_headers(
-            self.user_session))
-
-        if Instagram.HTTP_NOT_FOUND == response.status_code:
-            raise InstagramNotFoundException(f"Page {url} not found")
-
-        if not Instagram.HTTP_OK == response.status_code:
-            raise InstagramException.default(response.text,
-                                             response.status_code)
-
-        return Instagram.extract_shared_data_from_body(response.text)
-
-    @staticmethod
-    def extract_shared_data_from_body(body):
-        """
-        :param body: html string from a page
-        :return: a dict extract from page
-        """
-        array = re.findall(r'_sharedData = .*?;</script>', body)
-        if len(array) > 0:
-            raw_json = array[0][len("_sharedData ="):-len(";</script>")]
-
-            return json.loads(raw_json)
-
-        return None
-
-    def search_tags_by_tag_name(self, tag):
-        """
-        :param tag: tag string
-        :return: list of Tag
-        """
-        # TODO: Add tests and auth
-        time.sleep(self.sleep_between_requests)
-        response = self.__req.get(endpoints.get_general_search_json_link(tag))
-
-        if Instagram.HTTP_NOT_FOUND == response.status_code:
-            raise InstagramNotFoundException(
-                'Account with given username does not exist.')
-
-        if not Instagram.HTTP_OK == response.status_code:
-            raise InstagramException.default(response.text,
-                                             response.status_code)
-
-        json_response = response.json()
-
-        try:
-            status = json_response['status']
-            if status != 'ok':
-                raise InstagramException(
-                    'Response code is not equal 200. '
-                    'Something went wrong. Please report issue.')
-        except KeyError:
-            raise InstagramException('Response code is not equal 200. Something went wrong. Please report issue.')
-
-        try:
-            hashtags_raw = json_response['hashtags']
-            if len(hashtags_raw) == 0:
-                return []
-        except KeyError:
-            return None
-
-        hashtags = []
-        for json_hashtag in hashtags_raw:
-            hashtags.append(Tag(json_hashtag['hashtag']))
-
-        return hashtags
-
-## Section: Shortcuts
-
-    def get_user_medias(self, username, count=20):
-        """
-        :param username: instagram username
-        :param count: the number of how many media you want to get
-        :param maxId: used to paginate
-        :return: list of Media
-        """
-        account = self.get_account(username)
-        return self.yield_pagintated_data(self.get_user_medias_page, user_id=account.identifier)
-
-    def get_media_by_code(self, media_code):
-        """
-        :param media_code: media code
-        :return: Media
-        """
-        url = endpoints.get_media_page_link(media_code)
-        return self.get_media_by_url(url)        
-
-    def get_media_by_id(self, media_id):
-        """
-        :param media_id: media id
-        :return: list of Media
-        """
-        media_link = Media.get_link_from_id(media_id)
-        return self.get_media_by_url(media_link)
-
+        
     def get_media_by_url(self, media_url):
         """
         :param media_url: media url
@@ -374,8 +237,6 @@ class Instagram:
         medias = [Media(media_array['node']) for media_array in nodes]
         return medias
 
-## Search
-
     def get_account(self, username):
         """
         :param username: username
@@ -401,7 +262,173 @@ class Instagram:
         return Account(
             user_array['entry_data']['ProfilePage'][0]['graphql']['user'])
 
-    def get_current_top_medias_by_tag_name(self, tag_name):
+
+    def get_stories(self, reel_ids=None):
+        """
+        :param reel_ids: reel ids
+        :return: UserStories List
+        """
+        variables = {
+            'precomposed_overlay': False, 
+            'reel_ids': []
+        }
+
+        if reel_ids is None or len(reel_ids) == 0:
+            time.sleep(self.sleep_between_requests)
+            response = self.__req.get(endpoints.get_user_stories_link(),
+                                      headers=self.generate_headers(self.user_session))
+
+            if not Instagram.HTTP_OK == response.status_code:
+                raise InstagramException.default(response.text,
+                                                 response.status_code)
+
+            json_response = response.json()
+            try:
+                edges = json_response['data']['user']['feed_reels_tray'][
+                    'edge_reels_tray_to_reel']['edges']
+            except KeyError:
+                return None
+            for edge in edges:
+                variables['reel_ids'].append(edge['node']['id'])
+        else:
+            variables['reel_ids'] = reel_ids
+
+        time.sleep(self.sleep_between_requests)
+        response = self.__req.get(endpoints.get_stories_link(variables),
+                                  headers=self.generate_headers(
+                                      self.user_session))
+
+        if not Instagram.HTTP_OK == response.status_code:
+            raise InstagramException.default(response.text,
+                                             response.status_code)
+
+        json_response = response.json()
+        try:
+            reels_media = json_response['data']['reels_media']
+        except KeyError:
+            return None
+
+        stories = []
+        for user in reels_media:
+            user_stories = UserStories()
+            user_stories.owner = Account(user['user'])
+            for item in user['items']:
+                story = Story(item)
+                user_stories.stories.append(story)
+            stories.append(user_stories)
+        return stories
+
+    # TODO not optimal separate http call after getMedia
+    def get_users_tagged_in_media(self, code):
+        """
+        :param code: media short code
+        :return: list contains tagged_users dict
+        """
+        url = endpoints.get_media_json_link(code)
+        time.sleep(self.sleep_between_requests)
+        response = self.__req.get(url, headers=self.generate_headers(
+            self.user_session))
+
+        if not Instagram.HTTP_OK == response.status_code:
+            raise InstagramException.default(response.text,
+                                             response.status_code)
+
+        json_response = response.json()
+        try:
+            tag_data = json_response['graphql']['shortcode_media'][
+                'edge_media_to_tagged_user']['edges']
+        except KeyError:
+            return None
+
+        tagged_users = []
+        for tag in tag_data:
+            x_pos = tag['node']['x']
+            y_pos = tag['node']['y']
+            user = tag['node']['user']
+            # TODO: add Model and add Data to it instead of Dict
+            tagged_user = dict()
+            tagged_user['x_pos'] = x_pos
+            tagged_user['y_pos'] = y_pos
+            tagged_user['user'] = user
+            tagged_users.append(tagged_user)
+
+        return tagged_users
+
+#endregion
+#region Search
+
+    def searc_users_named(self, username):
+        """
+        :param username: user name
+        :return: Account List
+        """
+        time.sleep(self.sleep_between_requests)
+        response = self.__req.get(
+            endpoints.get_general_search_json_link(username),
+            headers=self.generate_headers(self.user_session))
+
+        if Instagram.HTTP_NOT_FOUND == response.status_code:
+            raise InstagramNotFoundException(
+                'Account with given username does not exist.')
+
+        if not Instagram.HTTP_OK == response.status_code:
+            raise InstagramException.default(response.text,
+                                             response.status_code)
+
+        json_response = response.json()
+        try:
+            status = json_response['status']
+            if not status == 'ok':
+                raise InstagramException(
+                    'Response code is not equal 200.'
+                    ' Something went wrong. Please report issue.')
+        except KeyError:
+            raise InstagramException(
+                'Response code is not equal 200.'
+                ' Something went wrong. Please report issue.')
+
+        try:
+            users = json_response['users']
+        except KeyError:
+            return None
+
+        accounts = [Account(json_account['user']) for json_account in users]
+        return accounts
+
+    def search_tags_similar_to(self, tag):
+        """
+        :param tag: tag string
+        :return: list of Tag
+        """
+        # TODO: Add tests and auth
+        time.sleep(self.sleep_between_requests)
+        response = self.__req.get(endpoints.get_general_search_json_link(tag))
+
+        if Instagram.HTTP_NOT_FOUND == response.status_code:
+            raise InstagramNotFoundException(
+                'Account with given username does not exist.')
+        if not Instagram.HTTP_OK == response.status_code:
+            raise InstagramException.default(response.text,
+                                             response.status_code)
+
+        json_response = response.json()
+        try:
+            status = json_response['status']
+            if status != 'ok':
+                raise InstagramException(
+                    'Response code is not equal 200. '
+                    'Something went wrong. Please report issue.')
+        except KeyError:
+            raise InstagramException('Response code is not equal 200. Something went wrong. Please report issue.')
+        try:
+            hashtags_raw = json_response['hashtags']
+        except KeyError:
+            return None
+
+        hashtags = [Tag(json_hashtag['hashtag']) for json_hashtag in hashtags_raw]
+        return hashtags
+
+    def search_top_tag_medias(self, tag_name):
         """
         :param tag_name: tag string
         :return: list of the top Media
@@ -424,7 +451,7 @@ class Instagram:
         medias = [Media(media_array['node']) for media_array in nodes]
         return medias
 
-    def get_current_top_medias_by_location_id(self, facebook_location_id):
+    def search_top_place_medias(self, facebook_location_id):
         """
         :param facebook_location_id: facebook location id
         :return: list of the top Media
@@ -446,7 +473,7 @@ class Instagram:
         medias = [Media(media_array['node']) for media_array in nodes]
         return medias
 
-    def get_location_by_id(self, facebook_location_id):
+    def search_place_by_facebook_id(self, facebook_location_id):
         """
         :param facebook_location_id: facebook location id
         :return: Location
@@ -467,10 +494,15 @@ class Instagram:
         json_response = response.json()
         return Location(json_response['graphql']['location'])
 
+#endregion
+#region Pagination
+
     def yield_pagintated_data(self, method, current_cursor = '', max_count = None, **kwargs):        
         count = 0
         while True:
             resp = method(max_id = current_cursor, **kwargs)
+            if resp is None:
+                break
             for obj in resp['results']:
                 yield obj
                 count += 1
@@ -481,7 +513,12 @@ class Instagram:
             else:
                 break
 
-## Pagintation
+    def collect_pagintated_data(self, method, max_count = None, **kwargs) -> list:        
+        return list(self.yield_pagintated_data(method, max_count, **kwargs))
+
+#endregion
+
+#region Paginated Methods
 
     def get_user_medias_page(self, user_id, max_id=''):
         """
@@ -602,7 +639,7 @@ class Instagram:
             'paging': paging
         }
 
-    def get_followers(self, account_id, max_id='', delayed=True):
+    def get_followers(self, account_id, max_id=''):
         time.sleep(self.sleep_between_requests)
         variables = {
             'id': str(account_id),
@@ -635,7 +672,7 @@ class Instagram:
         }
 
 
-    def get_following(self, account_id, max_id='', delayed=True):
+    def get_following(self, account_id, max_id=''):
         time.sleep(self.sleep_between_requests)
         variables = {
             'id': str(account_id),
@@ -667,143 +704,9 @@ class Instagram:
             'paging': paging
         }
 
-    def get_stories(self, reel_ids=None):
-        """
-        :param reel_ids: reel ids
-        :return: UserStories List
-        """
-        variables = {
-            'precomposed_overlay': False, 
-            'reel_ids': []
-        }
+#endregion
 
-        if reel_ids is None or len(reel_ids) == 0:
-            time.sleep(self.sleep_between_requests)
-            response = self.__req.get(endpoints.get_user_stories_link(),
-                                      headers=self.generate_headers(
-                                          self.user_session))
-
-            if not Instagram.HTTP_OK == response.status_code:
-                raise InstagramException.default(response.text,
-                                                 response.status_code)
-
-            json_response = response.json()
-
-            try:
-                edges = json_response['data']['user']['feed_reels_tray'][
-                    'edge_reels_tray_to_reel']['edges']
-            except KeyError:
-                return []
-
-            for edge in edges:
-                variables['reel_ids'].append(edge['node']['id'])
-
-        else:
-            variables['reel_ids'] = reel_ids
-
-        time.sleep(self.sleep_between_requests)
-        response = self.__req.get(endpoints.get_stories_link(variables),
-                                  headers=self.generate_headers(
-                                      self.user_session))
-
-        if not Instagram.HTTP_OK == response.status_code:
-            raise InstagramException.default(response.text,
-                                             response.status_code)
-
-        json_response = response.json()
-        try:
-            reels_media = json_response['data']['reels_media']
-            if len(reels_media) == 0:
-                return []
-        except KeyError:
-            return None
-
-        stories = []
-        for user in reels_media:
-            user_stories = UserStories()
-            user_stories.owner = Account(user['user'])
-            for item in user['items']:
-                story = Story(item)
-                user_stories.stories.append(story)
-            stories.append(user_stories)
-        return stories
-
-    def search_accounts_by_username(self, username):
-        """
-        :param username: user name
-        :return: Account List
-        """
-        time.sleep(self.sleep_between_requests)
-        response = self.__req.get(
-            endpoints.get_general_search_json_link(username),
-            headers=self.generate_headers(self.user_session))
-
-        if Instagram.HTTP_NOT_FOUND == response.status_code:
-            raise InstagramNotFoundException(
-                'Account with given username does not exist.')
-
-        if not Instagram.HTTP_OK == response.status_code:
-            raise InstagramException.default(response.text,
-                                             response.status_code)
-
-        json_response = response.json()
-
-        try:
-            status = json_response['status']
-            if not status == 'ok':
-                raise InstagramException(
-                    'Response code is not equal 200.'
-                    ' Something went wrong. Please report issue.')
-        except KeyError:
-            raise InstagramException(
-                'Response code is not equal 200.'
-                ' Something went wrong. Please report issue.')
-
-        try:
-            users = json_response['users']
-        except KeyError:
-            return None
-
-        accounts = [Account(json_account['user']) for json_account in users]
-        return accounts
-
-    # TODO not optimal separate http call after getMedia
-    def get_media_tagged_users_by_code(self, code):
-        """
-        :param code: media short code
-        :return: list contains tagged_users dict
-        """
-        url = endpoints.get_media_json_link(code)
-
-        time.sleep(self.sleep_between_requests)
-        response = self.__req.get(url, headers=self.generate_headers(
-            self.user_session))
-
-        if not Instagram.HTTP_OK == response.status_code:
-            raise InstagramException.default(response.text,
-                                             response.status_code)
-
-        json_response = response.json()
-
-        try:
-            tag_data = json_response['graphql']['shortcode_media'][
-                'edge_media_to_tagged_user']['edges']
-        except KeyError:
-            return []
-
-        tagged_users = []
-        for tag in tag_data:
-            x_pos = tag['node']['x']
-            y_pos = tag['node']['y']
-            user = tag['node']['user']
-            # TODO: add Model and add Data to it instead of Dict
-            tagged_user = dict()
-            tagged_user['x_pos'] = x_pos
-            tagged_user['y_pos'] = y_pos
-            tagged_user['user'] = user
-            tagged_users.append(tagged_user)
-
-        return tagged_users
+#region Auth
 
     def is_logged_in(self, session):
         """
@@ -815,7 +718,6 @@ class Instagram:
 
         session_id = session['sessionid']
         csrf_token = session['csrftoken']
-
         headers = {
             'cookie': f"ig_cb=1; csrftoken={csrf_token}; sessionid={session_id};",
             'referer': endpoints.BASE_URL + '/',
@@ -826,15 +728,12 @@ class Instagram:
 
         time.sleep(self.sleep_between_requests)
         response = self.__req.get(endpoints.BASE_URL, headers=headers)
-
         if not response.status_code == Instagram.HTTP_OK:
             return False
 
         cookies = response.cookies.get_dict()
-
         if cookies is None or not 'ds_user_id' in cookies.keys():
             return False
-
         return True
 
     def login(self, force=False, two_step_verificator=None):
@@ -912,88 +811,11 @@ class Instagram:
 
         return self.generate_headers(self.user_session)
 
-    def __verify_two_step(self, response, cookies, two_step_verificator):
-        """
-        :param response: Response object returned by Request
-        :param cookies: user cookies
-        :param two_step_verificator: two_step_verification instance
-        :return: Response
-        """
-        new_cookies = response.cookies.get_dict()
-        cookies = {**cookies, **new_cookies}
+#endregion
 
-        cookie_string = ''
-        for key in cookies.keys():
-            cookie_string += f'{key}={cookies[key]};'
+#region Authorized actions
 
-        headers = {
-            'cookie': cookie_string,
-            'referer': endpoints.LOGIN_URL,
-            'x-csrftoken': cookies['csrftoken'],
-            'user-agent': self.user_agent,
-        }
-
-        url = endpoints.BASE_URL + response.json()['checkpoint_url']
-        time.sleep(self.sleep_between_requests)
-        response = self.__req.get(url, headers=headers)
-        data = Instagram.extract_shared_data_from_body(response.text)
-
-        if data is not None:
-            try:
-                choices = \
-                    data['entry_data']['Challenge'][0]['extraData']['content'][
-                        3][
-                        'fields'][0]['values']
-            except KeyError:
-                choices = dict()
-                try:
-                    fields = data['entry_data']['Challenge'][0]['fields']
-                    try:
-                        choices.update({'label': f"Email: {fields['email']}",
-                                        'value': 1})
-                    except KeyError:
-                        pass
-                    try:
-                        choices.update(
-                            {'label': f"Phone: {fields['phone_number']}",
-                             'value': 0})
-                    except KeyError:
-                        pass
-
-                except KeyError:
-                    pass
-
-            if len(choices) > 0:
-                selected_choice = two_step_verificator.get_verification_type(
-                    choices)
-                response = self.__req.post(url,
-                                           data={'choice': selected_choice},
-                                           headers=headers)
-
-        if len(re.findall('name="security_code"', response.text)) <= 0:
-            raise InstagramAuthException(
-                'Something went wrong when try '
-                'two step verification. Please report issue.',
-                response.status_code)
-
-        security_code = two_step_verificator.get_security_code()
-
-        post_data = {
-            'csrfmiddlewaretoken': cookies['csrftoken'],
-            'verify': 'Verify Account',
-            'security_code': security_code,
-        }
-        response = self.__req.post(url, data=post_data, headers=headers)
-        if not response.status_code == Instagram.HTTP_OK \
-                or 'Please check the code we sent you and try again' in response.text:
-            raise InstagramAuthException(
-                'Something went wrong when try two step'
-                ' verification and enter security code. Please report issue.',
-                response.status_code)
-
-        return response
-
-    def add_comment(self, media_id, text, replied_to_comment_id = None):
+    def add_comment(self, media_id, text, replied_to_comment_id=None):
         """
         :param media_id: media id
         :param text:  the content you want to post
@@ -1109,3 +931,190 @@ class Instagram:
             except:
                 raise InstagramException("Exept on unfollow!")
         return False
+
+#endregion
+
+#region System
+
+
+    def generate_headers(self, session, gis_token=None):
+        """
+        :param session: user session dict
+        :param gis_token: a token used to be verified by instagram in header
+        :return: header dict
+        """
+        headers = {}
+        if session is not None:
+            cookies = ''
+
+            for key in session.keys():
+                cookies += f"{key}={session[key]}; "
+
+            csrf = session['x-csrftoken'] if session['csrftoken'] is None else \
+                session['csrftoken']
+
+            headers = {
+                'cookie': cookies,
+                'referer': endpoints.BASE_URL + '/',
+                'x-csrftoken': csrf
+            }
+
+        if self.user_agent is not None:
+            headers['user-agent'] = self.user_agent
+
+            if gis_token is not None:
+                headers['x-instagram-gis'] = gis_token
+
+        return headers
+
+    def __generate_gis_token(self, variables):
+        """
+        :param variables: a dict used to  generate_gis_token
+        :return: a token used to be verified by instagram
+        """
+        rhx_gis = self.__get_rhx_gis() if self.__get_rhx_gis() is not None else 'NULL'
+        string_to_hash = ':'.join([rhx_gis, json.dumps(variables, separators=(',', ':')) if isinstance(variables, dict) else variables])
+        return hashlib.md5(string_to_hash.encode('utf-8')).hexdigest()
+
+    def __get_rhx_gis(self):
+        """
+        :return: a string to generate gis_token
+        """
+        if self.rhx_gis is None:
+            try:
+                shared_data = self.__get_shared_data_from_page()
+            except Exception as _:
+                raise InstagramException('Could not extract gis from page')
+
+            if 'rhx_gis' in shared_data.keys():
+                self.rhx_gis = shared_data['rhx_gis']
+            else:
+                self.rhx_gis = None
+
+        return self.rhx_gis
+
+    def __get_mid(self):
+        """manually fetches the machine id from graphQL"""
+        time.sleep(self.sleep_between_requests)
+        response = self.__req.get('https://www.instagram.com/web/__mid/')
+
+        if response.status_code != Instagram.HTTP_OK:
+            raise InstagramException.default(response.text,
+                                             response.status_code)
+
+        return response.text
+
+    def __get_shared_data_from_page(self, url=endpoints.BASE_URL):
+        """
+        :param url: the requested url
+        :return: a dict extract from page
+        """
+        url = url.rstrip('/') + '/'
+        time.sleep(self.sleep_between_requests)
+        response = self.__req.get(url, headers=self.generate_headers(
+            self.user_session))
+
+        if Instagram.HTTP_NOT_FOUND == response.status_code:
+            raise InstagramNotFoundException(f"Page {url} not found")
+
+        if not Instagram.HTTP_OK == response.status_code:
+            raise InstagramException.default(response.text,
+                                             response.status_code)
+
+        return Instagram.extract_shared_data_from_body(response.text)
+
+    @staticmethod
+    def extract_shared_data_from_body(body):
+        """
+        :param body: html string from a page
+        :return: a dict extract from page
+        """
+        array = re.findall(r'_sharedData = .*?;</script>', body)
+        if len(array) > 0:
+            raw_json = array[0][len("_sharedData ="):-len(";</script>")]
+
+            return json.loads(raw_json)
+
+        return None
+
+    def __verify_two_step(self, response, cookies, two_step_verificator):
+        """
+        :param response: Response object returned by Request
+        :param cookies: user cookies
+        :param two_step_verificator: two_step_verification instance
+        :return: Response
+        """
+        new_cookies = response.cookies.get_dict()
+        cookies = {**cookies, **new_cookies}
+
+        cookie_string = ''
+        for key in cookies.keys():
+            cookie_string += f'{key}={cookies[key]};'
+
+        headers = {
+            'cookie': cookie_string,
+            'referer': endpoints.LOGIN_URL,
+            'x-csrftoken': cookies['csrftoken'],
+            'user-agent': self.user_agent,
+        }
+        url = endpoints.BASE_URL + response.json()['checkpoint_url']
+        time.sleep(self.sleep_between_requests)
+        response = self.__req.get(url, headers=headers)
+        data = Instagram.extract_shared_data_from_body(response.text)
+
+        if data is not None:
+            try:
+                choices = \
+                    data['entry_data']['Challenge'][0]['extraData']['content'][
+                        3]['fields'][0]['values']
+            except KeyError:
+                choices = dict()
+                try:
+                    fields = data['entry_data']['Challenge'][0]['fields']
+                    try:
+                        choices.update({
+                            'label': f"Email: {fields['email']}",
+                            'value': 1
+                        })
+                    except KeyError:
+                        pass
+                    try:
+                        choices.update({
+                            'label': f"Phone: {fields['phone_number']}",
+                            'value': 0
+                        })
+                    except KeyError:
+                        pass
+                except KeyError:
+                    pass
+
+            if len(choices) > 0:
+                selected_choice = two_step_verificator.get_verification_type(
+                    choices)
+                response = self.__req.post(url,
+                                           data={'choice': selected_choice},
+                                           headers=headers)
+
+        if len(re.findall('name="security_code"', response.text)) <= 0:
+            raise InstagramAuthException(
+                'Something went wrong when try '
+                'two step verification. Please report issue.',
+                response.status_code)
+
+        security_code = two_step_verificator.get_security_code()
+
+        post_data = {
+            'csrfmiddlewaretoken': cookies['csrftoken'],
+            'verify': 'Verify Account',
+            'security_code': security_code,
+        }
+        response = self.__req.post(url, data=post_data, headers=headers)
+        if not response.status_code == Instagram.HTTP_OK \
+                or 'Please check the code we sent you and try again' in response.text:
+            raise InstagramAuthException(
+                'Something went wrong when try two step'
+                ' verification and enter security code. Please report issue.',
+                response.status_code)
+        return response
+        
+#endregion
