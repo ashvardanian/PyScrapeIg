@@ -1,5 +1,5 @@
 from .initializer_model import InitializerModel
-
+import textwrap
 
 class Comment(InitializerModel):
     """
@@ -32,3 +32,14 @@ class Comment(InitializerModel):
         if prop == 'owner':
             from .account import Account
             self.owner = Account(value)
+
+    def __str__(self):
+        string = f"""
+        Comment Info:
+        'Id: {self.identifier}
+        Owner: {self.owner.identifier}
+        Text: {self.text}
+        Created at: {self.created_at}
+        """
+
+        return textwrap.dedent(string)
