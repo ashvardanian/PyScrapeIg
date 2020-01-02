@@ -2,8 +2,8 @@ from context import Instagram # pylint: disable=no-name-in-module
 from time import sleep
 
 instagram = Instagram()
-instagram.with_credentials('username', 'password', '/cachepath')
-instagram.login(force=False,two_step_verificator=True)
+# instagram.with_credentials('username', 'password', '/cachepath')
+# instagram.login(force=False,two_step_verificator=True)
 
 sleep(2) # Delay to mimic user
 

@@ -3,3 +3,4 @@ import sys
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 	
 from igramscraper.instagram import Instagram
+from igramscraper.insta import Instagram as Insta
