@@ -616,6 +616,14 @@ class Instagram:
         :return: dict that contains Media list, maxId, hasNextPage
         """
         account = self.get_account(username)
+        return self.get_paginate_medias(account.identifier, max_id=max_id)
+
+    def get_paginate_medias_by_user_id(self, user_id, max_id=''):
+        """
+        :param user_id: instagram user id
+        :param max_id: used to paginate next time
+        :return: dict that contains Media list, maxId, hasNextPage
+        """
         has_next_page = True
         medias = []
 
@@ -626,7 +634,7 @@ class Instagram:
         }
 
         variables = json.dumps({
-            'id': str(account.identifier),
+            'id': str(user_id),
             'first': str(endpoints.request_media_count),
             'after': str(max_id)
         }, separators=(',', ':'))
