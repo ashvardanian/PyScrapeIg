@@ -21,5 +21,5 @@ from context import Insta # pylint: disable=no-name-in-module
 
 instagram = Insta()
 print('Starting transmission!')
-for comment in instagram.yield_pagintated_data(instagram.get_media_comments_page, code = 'BG3Iz-No1IZ'):
+for comment in instagram.yield_pagintated_data_w_errors(instagram.get_media_comments_page, code = 'BG3Iz-No1IZ'):
     print(comment)

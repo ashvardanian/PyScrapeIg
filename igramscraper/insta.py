@@ -9,6 +9,7 @@ import random
 from .session_manager import CookieSessionManager
 from .exception.instagram_auth_exception import InstagramAuthException
 from .exception.instagram_exception import InstagramException
+from .exception.instagram_finished import InstagramFinished
 from .exception.instagram_not_found_exception import InstagramNotFoundException
 from .model.account import Account
 from .model.comment import Comment
@@ -497,21 +498,41 @@ class Instagram:
 #endregion
 #region Pagination
 
-    def yield_pagintated_data(self, method, current_cursor = '', max_count = None, **kwargs):        
+    def yield_pagintated_data_w_errors(self, method, current_cursor='', max_count=None, **kwargs):        
+        """
+        Goes over content and yields dictionaries from each response one-by-one.
+        If it registers an error - it yields the `Exception` object and retries the same page.
+        """
         count = 0
         while True:
-            resp = method(max_id = current_cursor, **kwargs)
-            if resp is None:
-                break
-            for obj in resp['results']:
+            response = None
+            try:
+                response = method(max_id = current_cursor, **kwargs)
+            except Exception as e:
+                yield e
+                continue
+            # Unpack the results.
+            if response is None:
+                return
+            for obj in response['results']:
                 yield obj
                 count += 1
                 if count == max_count:
-                    break
-            if resp['paging']['has_next_page']:
-                current_cursor = resp['paging']['end_cursor']
-            else:
-                break
+                    return
+            # Check if we should make another request.
+            if not response['paging']['has_next_page']:
+                yield InstagramFinished(request = str(method), cursor = current_cursor)
+                return
+            current_cursor = response['paging']['end_cursor']
+
+    def yield_pagintated_data(self, method, current_cursor='', max_count=None, **kwargs):        
+        for v in self.yield_pagintated_data_w_errors(method, current_cursor, max_count, **kwargs):
+            if isinstance(v, InstagramFinished):
+                return
+            elif isinstance(v, Exception):
+                raise v
+            else: 
+                yield v
 
     def collect_pagintated_data(self, method, max_count = None, **kwargs) -> list:        
         return list(self.yield_pagintated_data(method, max_count, **kwargs))
@@ -582,7 +603,7 @@ class Instagram:
             'paging': paging
         }
 
-    def get_media_likes_page(self, code, max_id=None):
+    def get_media_likes_page(self, code, max_id=''):
         """
         :param code:
         :param count:
