@@ -39,7 +39,7 @@ class Instagram:
 
     instance_cache = None
 
-    def __init__(self, sleep_between_requests=0):
+    def __init__(self, sleep_between_requests=0, sleep_between_rate_limits=0):
         self.__req = requests.session()
         self.paging_time_limit_sec = Instagram.PAGING_TIME_LIMIT_SEC
         self.paging_delay_minimum_microsec = Instagram.PAGING_DELAY_MINIMUM_MICROSEC
@@ -50,6 +50,7 @@ class Instagram:
         self.user_session = None
         self.rhx_gis = None
         self.sleep_between_requests = sleep_between_requests
+        self.sleep_between_rate_limits = sleep_between_rate_limits
         self.user_agent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_13_4) ' \
                           'AppleWebKit/537.36 (KHTML, like Gecko) ' \
                           'Chrome/66.0.3359.139 Safari/537.36'
@@ -525,10 +526,18 @@ class Instagram:
                 return
             current_cursor = response['paging']['end_cursor']
 
-    def yield_pagintated_data(self, method, current_cursor='', max_count=None, **kwargs):        
+    def yield_pagintated_data(self, method, current_cursor='', max_retries=3, max_count=None, **kwargs):        
+        retries_left = max_retries
         for v in self.yield_pagintated_data_w_errors(method, current_cursor, max_count, **kwargs):
             if isinstance(v, InstagramFinished):
                 return
+            elif isinstance(v, InstagramException):
+                if v.code() == 429:
+                    if retries_left > 0:
+                        retries_left -= 1
+                        time.sleep(self.sleep_between_rate_limits)
+                        continue
+                raise v
             elif isinstance(v, Exception):
                 raise v
             else: 
