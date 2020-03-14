@@ -18,7 +18,7 @@ $ pip install igramscraper
 ## Usage
 
 ```python
->>> import ig
+>>> from ig import Instagram
 >>> instagram = Instagram()
 >>> me = instagram.get_account('ashvardanian')
 >>> print(me)
@@ -33,4 +33,3 @@ If you want to get a lot of granular data use the low-level methods like `yield_
 # More info
 
 See examples [here](https://github.com/ashvardanian/PyScrapeIg/tree/master/examples).
-Read full [documentation](https://vk.readthedocs.org)
