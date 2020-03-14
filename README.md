@@ -14,7 +14,7 @@ Any ⭐️ or contribution is appreciated if you like the project 🤘
 ## How to install
 Simply run:
 ```
-pip install igramscraper
+pip install ig
 ```
 
 or download the project via git clone and run the following:
@@ -26,7 +26,7 @@ pip install -r requirements.txt
 Some methods do require authentication:
 ```python
 
-from igramscraper.instagram import Instagram
+from ig.insta import Instagram
 
 instagram = Instagram()
 
@@ -65,7 +65,7 @@ for more info browse through the examples folder
 
 Using proxy for requests:
 ```python
-from igramscraper.instagram import Instagram 
+from ig.insta import Instagram 
 
 proxies = {
     'http': 'http://123.45.67.8:1087',
