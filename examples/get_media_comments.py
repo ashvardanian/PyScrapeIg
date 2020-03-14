@@ -17,9 +17,9 @@
 # # You can start loading comments from specific comment by providing comment id
 # # comments = instagram.getMediaCommentsByCode('BG3Iz-No1IZ', 200, comment.identifier)
 
-from context import Insta # pylint: disable=no-name-in-module
+from context import Instagram # pylint: disable=no-name-in-module
 
-instagram = Insta()
+instagram = Instagram()
 print('Starting transmission!')
 for comment in instagram.yield_pagintated_data_w_errors(instagram.get_media_comments_page, code = 'BG3Iz-No1IZ'):
     print(comment)

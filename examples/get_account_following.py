@@ -11,6 +11,7 @@ username = 'kevin'
 following = []
 account = instagram.get_account(username)
 sleep(1)
+
 following = instagram.get_following(account.identifier, 150, 100, delayed=True) 
 for following_user in following['accounts']:
     print(following_user)
