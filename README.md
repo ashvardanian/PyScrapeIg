@@ -1,7 +1,7 @@
+# PyScrapeIg
+
 Python wrapper for Instagram.com API. 
 This fork has better support for long paginating requests.
-
-# Quickstart
 
 ## Install
 
@@ -10,7 +10,7 @@ This version:
 $ pip install git+https://github.com/ashvardanian/PyScrapeIg.git
 ```
 
-Original version:
+Original [version](https://github.com/realsirjoe/instagram-scraper):
 ```sh
 $ pip install igramscraper
 ```
@@ -30,6 +30,6 @@ If you want to get a lot of granular data use the low-level methods like `yield_
 >>>     print(media)
 ```
 
-# More info
+## More info
 
 See examples [here](https://github.com/ashvardanian/PyScrapeIg/tree/master/examples).
